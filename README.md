@@ -52,7 +52,7 @@ CoProT solves this problem.
 
 # 💡 Vision
 
-> **Build a personal coding productivity platform that helps developers learn from every problem they solve—not just count how many they've solved.**
+> **Build a personal coding productivity platform that helps developers capture, organize, and analyze their coding journey across multiple platforms.**
 
 ---
 
