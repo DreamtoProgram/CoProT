@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from config import Config
 
 # Database object
 db = SQLAlchemy()
@@ -13,9 +14,7 @@ def create_app():
     app = Flask(__name__)
 
     # Configuration
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///database/coprot.db"
-    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    app.config["SECRET_KEY"] = "coprot-secret-key"
+    app.config.from_object(Config)
 
     # Connect database with Flask
     db.init_app(app)
