@@ -1,27 +1,33 @@
-from fastapi import APIRouter, HTTPException, Depends, status
-# import pymysql
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from Backend.database.connection import get_db
-from Backend.schemas import user
-from Backend.schemas.problem import ProblemCreate, ProblemUpdate, ProblemResponse, ProblemsResponse, MessageResponse
+from Backend.schemas.problem import (
+    ProblemCreate,
+    ProblemUpdate,
+    ProblemResponse,
+    ProblemsResponse,
+    MessageResponse
+)
 from Backend.utils.auth import get_current_user
 
+
 router = APIRouter(
-    prefix = "/problems",
-    tags = ['Problems']
+    prefix="/problems",
+    tags=["Problems"]
 )
 
-@router.post('/', 
-            response_model = MessageResponse,
-            status_code = status.HTTP_201_CREATED
-            )
-def createProblem(problem : ProblemCreate, user = Depends(get_current_user), db = Depends(get_db)) -> str:
 
-    if not user:
-        raise HTTPException(
-            status_code = status.HTTP_401_UNAUTHORIZED,
-            detail = "User not authenticated"
-        )
-    
+@router.post(
+    "/",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED
+)
+def create_problem(
+    problem: ProblemCreate,
+    user=Depends(get_current_user),
+    db=Depends(get_db)
+):
+
     try:
         cursor = db.cursor()
 
@@ -43,131 +49,172 @@ def createProblem(problem : ProblemCreate, user = Depends(get_current_user), db 
         """
 
         values = (
-                problem.problem_name,
-                problem.platform,
-                problem.topic,
-                problem.difficulty,
-                problem.attempts,
-                problem.has_universal_pattern,
-                problem.pattern_name,
-                problem.notes,
-                problem.solved_date,
-                user["user_id"]
-            )
-        
+            problem.problem_name,
+            problem.platform,
+            problem.topic,
+            problem.difficulty,
+            problem.attempts,
+            problem.has_universal_pattern,
+            problem.pattern_name,
+            problem.notes,
+            problem.solved_date,
+            user["user_id"]
+        )
 
         cursor.execute(query, values)
         db.commit()
         cursor.close()
 
-        return {"message": "Data Successfully validated and recorded into coprot database!"}
+        return {
+            "message": "Data successfully validated and recorded into CoProT database!"
+        }
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(
-            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail = f"Internal Server Error: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error"
         )
-    
-@router.get('/', response_model = ProblemsResponse)
-def get_problem(user = Depends(get_current_user),db = Depends(get_db)):
+
+
+@router.get(
+    "/",
+    response_model=ProblemsResponse
+)
+def get_problems(
+    user=Depends(get_current_user),
+    db=Depends(get_db)
+):
 
     cursor = db.cursor()
 
     cursor.execute(
-        'select * from problems where user_id = %s', (user["user_id"],)
+        "SELECT * FROM problems WHERE user_id = %s",
+        (user["user_id"],)
     )
 
     problems = cursor.fetchall()
-
     cursor.close()
 
     if not problems:
         raise HTTPException(
-            status_code = status.HTTP_404_NOT_FOUND,
-            detail = "No problems found for the user"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No problems found for the user"
         )
 
-    count = len(problems)
-
     return {
-        "count" : count,
-        "problems" : list(problems)
+        "count": len(problems),
+        "problems": problems
     }
 
 
-@router.get('/{problemId}', response_model = ProblemResponse)
-def get_problem(problemId : int, user = Depends(get_current_user), db = Depends(get_db)):
+@router.get(
+    "/{problem_id}",
+    response_model=ProblemResponse
+)
+def get_problem(
+    problem_id: int,
+    user=Depends(get_current_user),
+    db=Depends(get_db)
+):
+
     try:
         cursor = db.cursor()
 
         cursor.execute(
-            "Select * from problems " \
-            "where problem_id = %s and user_id = %s", (problemId, user["user_id"])
+            """
+            SELECT *
+            FROM problems
+            WHERE problem_id = %s
+            AND user_id = %s
+            """,
+            (problem_id, user["user_id"])
         )
 
-        requiredProblem = cursor.fetchone()
-
+        problem = cursor.fetchone()
         cursor.close()
 
     except Exception:
-            raise HTTPException(
-            status_code=500,
-            detail="Internal server error"
-        )
-
-    if requiredProblem:
-        return requiredProblem
-
-    else:
         raise HTTPException(
-        status_code=404,
-        detail="Problem not found"
-    )
-
-    
-
-
-@router.delete('/{problem_id}', response_model = MessageResponse, status_code = status.HTTP_200_OK)  # for Modification successfull code is 200 code.
-def delete_problem(problem_id : int, user = Depends(get_current_user), db = Depends(get_db)):
-    try:
-
-        cursor = db.cursor()
-        cursor.execute(
-            'Delete from problems where problem_id = %s and user_id = %s', (problem_id, user["user_id"])
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error"
         )
-        deleted_or_not = cursor.rowcount
-        cursor.close()
+
+    if not problem:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Problem not found"
+        )
+
+    return problem
+
+
+@router.delete(
+    "/{problem_id}",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK
+)
+def delete_problem(
+    problem_id: int,
+    user=Depends(get_current_user),
+    db=Depends(get_db)
+):
+
+    try:
+        cursor = db.cursor()
+
+        cursor.execute(
+            """
+            DELETE FROM problems
+            WHERE problem_id = %s
+            AND user_id = %s
+            """,
+            (problem_id, user["user_id"])
+        )
+
+        deleted = cursor.rowcount
+
         db.commit()
-        
-        if deleted_or_not == 1:
-            return {
-                'message' : 'problem deleted successfully'
-            }
-        else:
-            raise HTTPException(
-                status_code=404,
-                detail="Problem not found"
-            )
+        cursor.close()
 
     except Exception:
         raise HTTPException(
-        status_code=500,
-        detail="Internal server error"
-    )
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error"
+        )
+
+    if deleted == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Problem not found"
+        )
+
+    return {
+        "message": "Problem deleted successfully"
+    }
 
 
-@router.put('/{problem_id}', response_model = MessageResponse, status_code = status.HTTP_200_OK)
-def update_problem(problem_id : int, update_credentials : ProblemUpdate, db = Depends(get_db), user = Depends(get_current_user)):
+@router.put(
+    "/{problem_id}",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK
+)
+def update_problem(
+    problem_id: int,
+    update_credentials: ProblemUpdate,
+    user=Depends(get_current_user),
+    db=Depends(get_db)
+):
+
+    update_data = update_credentials.model_dump(exclude_unset=True)
+
+    if not update_data:
+        return {
+            "message": "No data provided; nothing to update"
+        }
 
     try:
         cursor = db.cursor()
-        update_data = update_credentials.model_dump(exclude_unset=True) # very important without this we will not be able to perform partial update feature.
 
-        if not update_data:
-            return {
-                'message' : 'Not Provided; Data needs to update'
-            }
-        
         variables = []
         values = []
 
@@ -175,42 +222,37 @@ def update_problem(problem_id : int, update_credentials : ProblemUpdate, db = De
             variables.append(f"{key} = %s")
             values.append(value)
 
-        set_clause = ', '.join(variables)
+        set_clause = ", ".join(variables)
+
         query = f"""
-            Update problems
-            set {set_clause}
-            where
-            problem_id = %s and user_id = %s
-            """
+            UPDATE problems
+            SET {set_clause}
+            WHERE problem_id = %s
+            AND user_id = %s
+        """
 
         values.append(problem_id)
         values.append(user["user_id"])
-        update_values = (
-            values
-        )
 
-        cursor.execute(query, update_values)
+        cursor.execute(query, values)
 
-        updated_or_not = cursor.rowcount
+        updated = cursor.rowcount
+
         db.commit()
         cursor.close()
 
-        if updated_or_not == 1:
-            return {
-                'message' : 'Updated Successfully'
-            }
-
-        raise HTTPException(
-                status_code=404,
-                detail="Problem not found"
-            )
-    
-
     except Exception:
-        raise HTTPException (
-            status_code = 500,
-            detail = "Internal Server Error"
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error"
         )
 
+    if updated == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Problem not found"
+        )
 
-    
+    return {
+        "message": "Updated Successfully"
+    }
